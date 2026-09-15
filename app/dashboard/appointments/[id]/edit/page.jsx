@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 
 import {
   ArrowLeft,
@@ -9,20 +10,25 @@ import {
   Clock3,
   UserRound,
   Scissors,
-  Phone,
   FileText,
   CheckCircle2,
   ChevronDown,
 } from "lucide-react";
 
 import {
+  getAppointment,
   getCustomers,
   getServices,
   getStaff,
-  createAppointment,
-} from "../../../../lib/api";
+  updateAppointment,
+} from "../../../../../lib/api";
 
-export default function NewAppointmentPage() {
+export default function EditAppointmentPage() {
+  const params = useParams();
+  const router = useRouter();
+
+  const appointmentId = params.id;
+
   const [customers, setCustomers] = useState([]);
   const [services, setServices] = useState([]);
   const [staffMembers, setStaffMembers] = useState([]);
@@ -31,50 +37,92 @@ export default function NewAppointmentPage() {
   const [submitLoading, setSubmitLoading] = useState(false);
 
   const [apiError, setApiError] = useState("");
-  const [created, setCreated] = useState(false);
+  const [updated, setUpdated] = useState(false);
 
   const [form, setForm] = useState({
     customer: "",
     service: "",
     staff: "",
-    date: new Date().toISOString().split("T")[0],
+    date: "",
     time: "",
     notes: "",
   });
 
   const [errors, setErrors] = useState({});
 
-  // Load customers, services and staff
+  // Load appointment + dropdown data
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true);
         setApiError("");
 
-        const [customersResponse, servicesResponse, staffResponse] =
-          await Promise.all([
-            getCustomers("?per_page=100"),
-            getServices(),
-            getStaff(),
-          ]);
+        const [
+          appointmentResponse,
+          customersResponse,
+          servicesResponse,
+          staffResponse,
+        ] = await Promise.all([
+          getAppointment(appointmentId),
+          getCustomers("?per_page=100"),
+          getServices(),
+          getStaff(),
+        ]);
 
-        setCustomers(customersResponse?.data || []);
+        const appointment = appointmentResponse?.data || appointmentResponse;
 
-        setServices(
-          (servicesResponse?.data || []).filter((service) => service.is_active),
+        const customerList = customersResponse?.data || [];
+
+        const serviceList = (servicesResponse?.data || []).filter(
+          (service) => service.is_active,
         );
 
-        setStaffMembers(staffResponse?.data || []);
+        const staffList = staffResponse?.data || [];
+
+        setCustomers(customerList);
+        setServices(serviceList);
+        setStaffMembers(staffList);
+
+        // Fill form with existing appointment data
+        setForm({
+          customer: appointment?.customer?.id
+            ? String(appointment.customer.id)
+            : appointment?.customer_id
+              ? String(appointment.customer_id)
+              : "",
+
+          service: appointment?.service?.id
+            ? String(appointment.service.id)
+            : appointment?.service_id
+              ? String(appointment.service_id)
+              : "",
+
+          staff: appointment?.staff?.id
+            ? String(appointment.staff.id)
+            : appointment?.staff_id
+              ? String(appointment.staff_id)
+              : "",
+
+          date: appointment?.appointment_date || "",
+
+          time: appointment?.appointment_time
+            ? appointment.appointment_time.slice(0, 5)
+            : "",
+
+          notes: appointment?.notes || "",
+        });
       } catch (error) {
-        console.error("Failed to load appointment data:", error);
-        setApiError(error.message || "Failed to load data.");
+        console.error("Failed to load appointment:", error);
+        setApiError(error.message || "Failed to load appointment.");
       } finally {
         setLoading(false);
       }
     }
 
-    loadData();
-  }, []);
+    if (appointmentId) {
+      loadData();
+    }
+  }, [appointmentId]);
 
   const selectedCustomer = customers.find(
     (customer) => String(customer.id) === form.customer,
@@ -103,22 +151,8 @@ export default function NewAppointmentPage() {
       }));
     }
 
-    setCreated(false);
+    setUpdated(false);
     setApiError("");
-  }
-
-  function selectTime(time) {
-    setForm((prev) => ({
-      ...prev,
-      time,
-    }));
-
-    setErrors((prev) => ({
-      ...prev,
-      time: "",
-    }));
-
-    setCreated(false);
   }
 
   function validateForm() {
@@ -159,7 +193,7 @@ export default function NewAppointmentPage() {
     try {
       setSubmitLoading(true);
       setApiError("");
-      setCreated(false);
+      setUpdated(false);
 
       const appointmentData = {
         customer_id: Number(form.customer),
@@ -170,19 +204,19 @@ export default function NewAppointmentPage() {
         notes: form.notes || null,
       };
 
-      console.log("Sending appointment:", appointmentData);
+      console.log("Updating appointment:", appointmentData);
 
-      await createAppointment(appointmentData);
+      await updateAppointment(appointmentId, appointmentData);
 
-      setCreated(true);
+      setUpdated(true);
 
       window.scrollTo({
         top: 0,
         behavior: "smooth",
       });
     } catch (error) {
-      console.error("Create appointment failed:", error);
-      setApiError(error.message || "Failed to create appointment.");
+      console.error("Update appointment failed:", error);
+      setApiError(error.message || "Failed to update appointment.");
     } finally {
       setSubmitLoading(false);
     }
@@ -191,7 +225,7 @@ export default function NewAppointmentPage() {
   return (
     <div className="px-4 py-6 md:px-8 md:py-8">
       {/* Success */}
-      {created && (
+      {updated && (
         <div className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-emerald-700">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100">
             <CheckCircle2 size={18} />
@@ -199,11 +233,11 @@ export default function NewAppointmentPage() {
 
           <div>
             <p className="text-sm font-semibold">
-              Appointment created successfully
+              Appointment updated successfully
             </p>
 
             <p className="mt-0.5 text-xs text-emerald-600">
-              The appointment has been saved successfully.
+              The appointment changes have been saved successfully.
             </p>
           </div>
         </div>
@@ -219,11 +253,11 @@ export default function NewAppointmentPage() {
       {/* Header */}
       <div className="mb-7">
         <Link
-          href="/dashboard/appointments"
+          href={`/dashboard/appointments/${appointmentId}`}
           className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-slate-400 transition hover:text-emerald-600"
         >
           <ArrowLeft size={16} />
-          Back to Appointments
+          Back to Appointment
         </Link>
 
         <p className="mb-1 text-sm font-medium text-emerald-600">
@@ -231,17 +265,17 @@ export default function NewAppointmentPage() {
         </p>
 
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-[34px]">
-          New Appointment
+          Edit Appointment
         </h1>
 
         <p className="mt-1.5 text-sm text-slate-400">
-          Schedule a new appointment for your customer.
+          Update the appointment details below.
         </p>
       </div>
 
       <form onSubmit={handleSubmit}>
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-          {/* Left */}
+          {/* LEFT */}
           <div className="space-y-5">
             {/* Customer */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
@@ -301,8 +335,6 @@ export default function NewAppointmentPage() {
               {errors.customer && (
                 <p className="mt-1.5 text-xs text-red-500">{errors.customer}</p>
               )}
-
-              
             </section>
 
             {/* Service & Staff */}
@@ -346,7 +378,9 @@ export default function NewAppointmentPage() {
                           : "border-slate-200 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                       }`}
                     >
-                      <option value="">Select a service</option>
+                      <option value="">
+                        {loading ? "Loading services..." : "Select a service"}
+                      </option>
 
                       {services.map((service) => (
                         <option key={service.id} value={service.id}>
@@ -400,7 +434,9 @@ export default function NewAppointmentPage() {
                           : "border-slate-200 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                       }`}
                     >
-                      <option value="">Select staff member</option>
+                      <option value="">
+                        {loading ? "Loading staff..." : "Select staff member"}
+                      </option>
 
                       {staffMembers.map((staff) => (
                         <option key={staff.id} value={staff.id}>
@@ -442,7 +478,6 @@ export default function NewAppointmentPage() {
                 </div>
               </div>
 
-              {/* Date & Time */}
               <div className="grid gap-5 md:grid-cols-2">
                 {/* Date */}
                 <div>
@@ -459,6 +494,7 @@ export default function NewAppointmentPage() {
                     type="date"
                     value={form.date}
                     onChange={handleChange}
+                    disabled={loading}
                     className={`h-12 w-full rounded-xl border bg-white px-4 text-sm text-slate-700 outline-none transition ${
                       errors.date
                         ? "border-red-300"
@@ -486,6 +522,7 @@ export default function NewAppointmentPage() {
                     type="time"
                     value={form.time}
                     onChange={handleChange}
+                    disabled={loading}
                     className={`h-12 w-full rounded-xl border bg-white px-4 text-sm text-slate-700 outline-none transition ${
                       errors.time
                         ? "border-red-300"
@@ -523,6 +560,7 @@ export default function NewAppointmentPage() {
                 value={form.notes}
                 onChange={handleChange}
                 rows={4}
+                disabled={loading}
                 placeholder="Write any notes about this appointment..."
                 className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
               />
@@ -531,7 +569,7 @@ export default function NewAppointmentPage() {
             </section>
           </div>
 
-          {/* Right Summary */}
+          {/* RIGHT SUMMARY */}
           <div className="xl:sticky xl:top-24 xl:self-start">
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 bg-slate-50/70 p-5">
@@ -540,7 +578,7 @@ export default function NewAppointmentPage() {
                 </p>
 
                 <h2 className="mt-1 text-lg font-semibold text-slate-900">
-                  Review Details
+                  Review Changes
                 </h2>
               </div>
 
@@ -674,7 +712,7 @@ export default function NewAppointmentPage() {
                   </div>
                 )}
 
-                {/* Submit */}
+                {/* Update */}
                 <button
                   type="submit"
                   disabled={submitLoading || loading}
@@ -682,7 +720,7 @@ export default function NewAppointmentPage() {
                 >
                   <CheckCircle2 size={17} />
 
-                  {submitLoading ? "Creating..." : "Create Appointment"}
+                  {submitLoading ? "Updating..." : "Update Appointment"}
                 </button>
               </div>
             </div>

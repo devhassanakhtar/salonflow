@@ -3,14 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 import {
   ArrowLeft,
   UserRound,
   Phone,
   Mail,
-  CalendarDays,
-  MapPin,
   Save,
 } from "lucide-react";
 
@@ -49,11 +48,9 @@ export default function EditCustomerPage() {
 
         const customer = response?.data || response;
 
-        // Split full name into first and last name
         const nameParts = (customer.name || "").trim().split(" ");
 
         const firstName = nameParts[0] || "";
-
         const lastName = nameParts.slice(1).join(" ");
 
         setForm({
@@ -68,6 +65,8 @@ export default function EditCustomerPage() {
         console.error("CUSTOMER EDIT ERROR:", err);
 
         setError(err?.message || "Failed to load customer.");
+
+        toast.error(err?.message || "Failed to load customer.");
       } finally {
         setLoading(false);
       }
@@ -86,6 +85,8 @@ export default function EditCustomerPage() {
       ...form,
       [name]: value,
     });
+
+    setError("");
   }
 
   // Update customer
@@ -97,16 +98,19 @@ export default function EditCustomerPage() {
     // Basic validation
     if (!form.firstName.trim()) {
       setError("First name is required.");
+      toast.error("First name is required.");
       return;
     }
 
     if (!form.lastName.trim()) {
       setError("Last name is required.");
+      toast.error("Last name is required.");
       return;
     }
 
     if (!form.phone.trim()) {
       setError("Phone number is required.");
+      toast.error("Phone number is required.");
       return;
     }
 
@@ -125,12 +129,18 @@ export default function EditCustomerPage() {
 
       await updateCustomer(customerId, customerData);
 
-      // After successful update go back to details page
+      // Success toaster
+      toast.success("Customer updated successfully");
+
+      // Go back to customer details
       router.push(`/dashboard/customers/${customerId}`);
     } catch (err) {
       console.error("UPDATE CUSTOMER ERROR:", err);
 
       setError(err?.message || "Failed to update customer.");
+
+      // Error toaster
+      toast.error(err?.message || "Failed to update customer.");
     } finally {
       setSaving(false);
     }
@@ -143,7 +153,9 @@ export default function EditCustomerPage() {
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-emerald-600" />
 
-          <p className="text-sm text-slate-400">Loading customer...</p>
+          <p className="text-sm text-slate-400">
+            Loading customer...
+          </p>
         </div>
       </div>
     );
@@ -179,15 +191,19 @@ export default function EditCustomerPage() {
       {/* Error */}
       {error && (
         <div className="mb-5 rounded-xl border border-red-100 bg-red-50 p-4">
-          <p className="text-sm font-medium text-red-600">{error}</p>
+          <p className="text-sm font-medium text-red-600">
+            {error}
+          </p>
         </div>
       )}
 
       {/* Form */}
       <form onSubmit={handleSubmit}>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+
           {/* LEFT */}
           <div className="space-y-6">
+
             {/* Basic Information */}
             <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 p-5 md:p-6">
@@ -210,6 +226,7 @@ export default function EditCustomerPage() {
 
               <div className="p-5 md:p-6">
                 <div className="grid gap-5 md:grid-cols-2">
+
                   {/* First Name */}
                   <div>
                     <label className="mb-2 block text-xs font-semibold text-slate-600">
@@ -267,6 +284,7 @@ export default function EditCustomerPage() {
 
               <div className="p-5 md:p-6">
                 <div className="grid gap-5 md:grid-cols-2">
+
                   {/* Phone */}
                   <div>
                     <label className="mb-2 block text-xs font-semibold text-slate-600">
@@ -319,6 +337,7 @@ export default function EditCustomerPage() {
 
           {/* RIGHT */}
           <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
+
             {/* Save Card */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-5">
@@ -358,3 +377,4 @@ export default function EditCustomerPage() {
     </div>
   );
 }
+

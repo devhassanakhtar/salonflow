@@ -3,14 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 import {
   ArrowLeft,
   UserRound,
   Phone,
   Mail,
-  MapPin,
-  CalendarDays,
   CheckCircle2,
   X,
 } from "lucide-react";
@@ -28,10 +27,7 @@ export default function NewCustomerPage() {
   });
 
   const [errors, setErrors] = useState({});
-
   const [loading, setLoading] = useState(false);
-
-  const [apiError, setApiError] = useState("");
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -47,8 +43,6 @@ export default function NewCustomerPage() {
         [name]: "",
       }));
     }
-
-    setApiError("");
   }
 
   function validateForm() {
@@ -66,7 +60,10 @@ export default function NewCustomerPage() {
       newErrors.phone = "Please enter the phone number.";
     }
 
-    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+    if (
+      form.email.trim() &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)
+    ) {
       newErrors.email = "Please enter a valid email address.";
     }
 
@@ -84,7 +81,6 @@ export default function NewCustomerPage() {
 
     try {
       setLoading(true);
-      setApiError("");
 
       const customerData = {
         name: `${form.firstName.trim()} ${form.lastName.trim()}`,
@@ -92,30 +88,20 @@ export default function NewCustomerPage() {
         email: form.email.trim() || null,
       };
 
-      const response = await createCustomer(customerData);
+      await createCustomer(customerData);
+
+      toast.success("Customer created successfully");
 
       router.push("/dashboard/customers");
     } catch (err) {
       console.error("CREATE CUSTOMER ERROR:", err);
 
-      setApiError(
-        err?.message || "Failed to create customer. Please try again.",
+      toast.error(
+        err?.message || "Failed to create customer. Please try again."
       );
     } finally {
       setLoading(false);
     }
-  }
-
-  function handleCancel() {
-    setForm({
-      firstName: "",
-      lastName: "",
-      phone: "",
-      email: "",
-    });
-
-    setErrors({});
-    setApiError("");
   }
 
   const initials =
@@ -127,20 +113,6 @@ export default function NewCustomerPage() {
 
   return (
     <div className="px-4 py-6 md:px-8 md:py-8">
-      {/* API Error */}
-      {apiError && (
-        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 p-4 text-red-700">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100">
-            <X size={18} />
-          </div>
-
-          <div>
-            <p className="text-sm font-semibold">Failed to create customer</p>
-
-            <p className="mt-0.5 text-xs text-red-600">{apiError}</p>
-          </div>
-        </div>
-      )}
 
       {/* Header */}
       <div className="mb-7">
@@ -152,28 +124,28 @@ export default function NewCustomerPage() {
           Back to Customers
         </Link>
 
-        <div>
-          <p className="mb-1 text-sm font-medium text-emerald-600">
-            Customer Management
-          </p>
+        <p className="mb-1 text-sm font-medium text-emerald-600">
+          Customer Management
+        </p>
 
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-[34px]">
-            New Customer
-          </h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-[34px]">
+          New Customer
+        </h1>
 
-          <p className="mt-1.5 text-sm text-slate-400">
-            Create a new customer profile for your salon.
-          </p>
-        </div>
+        <p className="mt-1.5 text-sm text-slate-400">
+          Create a new customer profile for your salon.
+        </p>
       </div>
 
       {/* Form */}
       <form onSubmit={handleSubmit}>
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-          {/* LEFT SIDE */}
-          <div className="space-y-8">
-            {/* Personal Information */}
+
+          {/* LEFT */}
+          <div>
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+
+              {/* Section Header */}
               <div className="mb-5 flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                   <UserRound size={19} />
@@ -191,6 +163,7 @@ export default function NewCustomerPage() {
               </div>
 
               <div className="grid gap-5">
+
                 {/* First Name */}
                 <div>
                   <label
@@ -324,7 +297,7 @@ export default function NewCustomerPage() {
                     </p>
                   )}
                 </div>
-                
+
                 {/* Information */}
                 <div className="rounded-xl bg-emerald-50 p-4">
                   <div className="flex items-start gap-3">
@@ -344,13 +317,15 @@ export default function NewCustomerPage() {
                     </div>
                   </div>
                 </div>
+
               </div>
             </section>
           </div>
 
-          {/* RIGHT SIDE */}
+          {/* RIGHT */}
           <div className="xl:sticky xl:top-24 xl:self-start">
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+
               {/* Summary Header */}
               <div className="border-b border-slate-100 bg-slate-50/70 p-5">
                 <p className="text-xs font-medium text-emerald-600">
@@ -363,7 +338,8 @@ export default function NewCustomerPage() {
               </div>
 
               <div className="p-5">
-                {/* Customer Preview */}
+
+                {/* Customer */}
                 <div className="mb-5">
                   <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                     Customer
@@ -387,7 +363,8 @@ export default function NewCustomerPage() {
                 </div>
 
                 {/* Details */}
-                <div className="space-y-7 border-y border-slate-100 py-5">
+                <div className="space-y-5 border-y border-slate-100 py-5">
+
                   {/* Phone */}
                   <div className="flex items-start gap-3">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-500">
@@ -422,42 +399,19 @@ export default function NewCustomerPage() {
                     </div>
                   </div>
 
-                  {/* Date of Birth */}
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-500">
-                      <CalendarDays size={14} />
-                    </div>
-
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wider text-slate-400">
-                        Date of Birth
-                      </p>
-
-                      <p className="mt-0.5 text-sm font-medium text-slate-700">
-                        {form.dateOfBirth
-                          ? new Date(
-                              `${form.dateOfBirth}T00:00:00`,
-                            ).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })
-                          : "Not provided"}
-                      </p>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Buttons */}
                 <div className="mt-6 space-y-2.5">
+
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-800 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                    className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-700 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {loading ? (
                       <>
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></div>
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                         Creating...
                       </>
                     ) : (
@@ -470,16 +424,17 @@ export default function NewCustomerPage() {
 
                   <Link
                     href="/dashboard/customers"
-                    onClick={handleCancel}
-                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-600 transition hover:bg-slate-50 cursor-pointer"
+                    className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-600 transition hover:bg-slate-50"
                   >
                     <X size={16} />
                     Cancel
                   </Link>
+
                 </div>
               </div>
             </div>
           </div>
+
         </div>
       </form>
     </div>

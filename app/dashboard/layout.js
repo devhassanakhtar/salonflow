@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
 import { AuthProvider, useAuth } from "../../context/AuthContext";
 import { isRouteAllowed } from "../../lib/permissions";
+import { Toaster } from "sonner";
 
 function DashboardGuard({ children }) {
   const { role, isLoading } = useAuth();
@@ -15,7 +16,7 @@ function DashboardGuard({ children }) {
 
   useEffect(() => {
     if (!isLoading && role && !isRouteAllowed(role, pathname)) {
-      router.replace("/dashboard"); 
+      router.replace("/dashboard");
     }
   }, [isLoading, role, pathname, router]);
 
@@ -28,7 +29,7 @@ function DashboardGuard({ children }) {
   }
 
   if (role && !isRouteAllowed(role, pathname)) {
-    return null; 
+    return null;
   }
 
   return children;
@@ -40,10 +41,15 @@ export default function DashboardLayout({ children }) {
   return (
     <AuthProvider>
       <div className="min-h-screen bg-[#f7f8f7] text-slate-900">
-        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+        <Sidebar
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+        />
 
         <main className="lg:pl-[245px]">
-          <DashboardGuard>{children}</DashboardGuard>
+          <DashboardGuard>
+            {children} <Toaster position="top-right" />
+          </DashboardGuard>
         </main>
       </div>
     </AuthProvider>

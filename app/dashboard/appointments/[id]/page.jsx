@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 import {
   ArrowLeft,
@@ -11,84 +12,262 @@ import {
   Scissors,
   Phone,
   Mail,
-  MapPin,
   CheckCircle2,
   XCircle,
-  MoreHorizontal,
   Edit3,
   Trash2,
   MessageSquare,
 } from "lucide-react";
 
-const appointment = {
-  id: "APT-1024",
-  status: "Confirmed",
+import {
+  getAppointment,
+  confirmAppointment,
+  cancelAppointment,
+  deleteAppointment,
+} from "../../../../lib/api";
 
-  customer: {
-    name: "Ahmed Khan",
-    phone: "+92 300 1234567",
-    email: "ahmed.khan@example.com",
-    initials: "AK",
-  },
+import ConfirmModal from "../../../../components/ConfirmModal";
 
-  service: {
-    name: "Haircut",
-    duration: "45 min",
-    price: "$20",
-    category: "Hair",
-  },
+function getInitials(name) {
+  if (!name) return "";
 
-  staff: {
-    name: "Usman Ali",
-    role: "Hair Stylist",
-    initials: "UA",
-  },
+  return name
+    .split(" ")
+    .map((word) => word[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
 
-  date: "September 10, 2026",
-  time: "09:30 AM",
-  endTime: "10:15 AM",
+function formatTime(timeStr) {
+  if (!timeStr) return "Not provided";
 
-  notes:
-    "Customer prefers a short haircut with a clean finish.",
+  const [hour, minute] = timeStr.split(":");
 
-  createdAt: "September 8, 2026",
-};
+  const h = parseInt(hour, 10);
 
-const previousAppointments = [
-  {
-    date: "August 22, 2026",
-    service: "Haircut",
-    staff: "Usman Ali",
-    status: "Completed",
-    price: "$20",
-  },
-  {
-    date: "July 18, 2026",
-    service: "Beard Trim",
-    staff: "Bilal Ahmed",
-    status: "Completed",
-    price: "$15",
-  },
-  {
-    date: "June 12, 2026",
-    service: "Hair Styling",
-    staff: "Usman Ali",
-    status: "Completed",
-    price: "$25",
-  },
-];
+  const suffix = h >= 12 ? "PM" : "AM";
+
+  const displayHour = h % 12 === 0 ? 12 : h % 12;
+
+  return `${displayHour}:${minute} ${suffix}`;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return "Not provided";
+
+  const date = new Date(dateStr + "T00:00:00");
+
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function capitalize(str) {
+  if (!str) return "";
+
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function getStatusStyles(status) {
+  const styles = {
+    Confirmed: "bg-emerald-50 text-emerald-700",
+    Pending: "bg-amber-50 text-amber-700",
+    Completed: "bg-blue-50 text-blue-700",
+    Cancelled: "bg-red-50 text-red-600",
+  };
+
+  return styles[status] || "bg-slate-50 text-slate-600";
+}
 
 export default function AppointmentDetailsPage() {
   const params = useParams();
+  const router = useRouter();
 
-  const appointmentId = params?.id || "1024";
+  const appointmentId = params?.id;
+
+  const [appointment, setAppointment] = useState(null);
+
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [error, setError] = useState("");
+
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const [confirmModal, setConfirmModal] = useState({
+    open: false,
+    type: null,
+  });
+
+  /*
+   * Load appointment
+   */
+  useEffect(() => {
+    async function loadAppointment() {
+      if (!appointmentId) return;
+
+      try {
+        setIsLoading(true);
+        setError("");
+
+        const response = await getAppointment(appointmentId);
+
+        console.log("APPOINTMENT DETAILS:", response);
+
+        setAppointment(response?.data || response);
+      } catch (err) {
+        console.error("APPOINTMENT DETAILS ERROR:", err);
+
+        setError(err?.message || "Failed to load appointment details.");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadAppointment();
+  }, [appointmentId]);
+
+  /*
+   * Cancel appointment
+   */
+  async function handleCancel() {
+    if (!appointmentId) return;
+
+    try {
+      setActionLoading(true);
+
+      const response = await cancelAppointment(appointmentId);
+
+      console.log("CANCEL APPOINTMENT:", response);
+
+      setAppointment((prev) => ({
+        ...prev,
+        status: "cancelled",
+      }));
+
+      setConfirmModal({
+        open: false,
+        type: null,
+      });
+    } catch (err) {
+      console.error("CANCEL APPOINTMENT ERROR:", err);
+
+      setError(err?.message || "Failed to cancel appointment.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  /*
+   * Delete appointment
+   */
+  async function handleDelete() {
+    if (!appointmentId) return;
+
+    try {
+      setActionLoading(true);
+
+      await deleteAppointment(appointmentId);
+
+      setConfirmModal({
+        open: false,
+        type: null,
+      });
+
+      router.push("/dashboard/appointments");
+    } catch (err) {
+      console.error("DELETE APPOINTMENT ERROR:", err);
+
+      setError(err?.message || "Failed to delete appointment.");
+
+      setActionLoading(false);
+    }
+  }
+
+  /*
+   * Confirm appointment
+   */
+  async function handleConfirm() {
+    if (!appointmentId) return;
+
+    try {
+      setActionLoading(true);
+
+      const response = await confirmAppointment(appointmentId);
+
+      console.log("CONFIRM APPOINTMENT:", response);
+
+      setAppointment((prev) => ({
+        ...prev,
+        status: "confirmed",
+      }));
+    } catch (err) {
+      console.error("CONFIRM APPOINTMENT ERROR:", err);
+
+      setError(err?.message || "Failed to confirm appointment.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  /*
+   * Loading
+   */
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[500px] items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-emerald-600" />
+
+          <p className="text-sm text-slate-400">Loading appointment...</p>
+        </div>
+      </div>
+    );
+  }
+
+  /*
+   * Error
+   */
+  if (error && !appointment) {
+    return (
+      <div className="px-4 py-6 md:px-8 md:py-8">
+        <Link
+          href="/dashboard/appointments"
+          className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-emerald-600"
+        >
+          <ArrowLeft size={16} />
+          Back to Appointments
+        </Link>
+
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-600">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  if (!appointment) return null;
+
+  const status = capitalize(appointment.status);
+
+  const customer = appointment.customer;
+
+  const service = appointment.service;
+
+  const staff = appointment.staff;
+
+  const isPending = appointment.status === "pending";
+
+  const isCompleted = appointment.status === "completed";
+
+  const isCancelled = appointment.status === "cancelled";
 
   return (
     <div className="px-4 py-6 md:px-8 md:py-8">
-
       {/* Header */}
       <div className="mb-7">
-
         <Link
           href="/dashboard/appointments"
           className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-slate-400 transition hover:text-emerald-600"
@@ -98,19 +277,19 @@ export default function AppointmentDetailsPage() {
         </Link>
 
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-
           <div>
-
             <div className="mb-2 flex flex-wrap items-center gap-2">
-
               <p className="text-sm font-medium text-emerald-600">
-                Appointment #{appointmentId}
+                Appointment #{appointment.id}
               </p>
 
-              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-                {appointment.status}
+              <span
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${getStatusStyles(
+                  status,
+                )}`}
+              >
+                {status}
               </span>
-
             </div>
 
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-[34px]">
@@ -120,54 +299,53 @@ export default function AppointmentDetailsPage() {
             <p className="mt-1.5 text-sm text-slate-400">
               View and manage appointment information.
             </p>
-
           </div>
 
           {/* Actions */}
           <div className="flex flex-wrap gap-2">
+            {appointment.status === "pending" && (
+              <Link
+                href={`/dashboard/appointments/${appointment.id}/edit`}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+              >
+                <Edit3 size={15} />
+                Edit
+              </Link>
+            )}
 
             <button
               type="button"
-              className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-            >
-              <Edit3 size={15} />
-              Edit
-            </button>
-
-            <button
-              type="button"
-              className="inline-flex h-10 items-center gap-2 rounded-xl border border-red-100 bg-white px-4 text-sm font-medium text-red-500 transition hover:bg-red-50"
+              onClick={() =>
+                setConfirmModal({
+                  open: true,
+                  type: "delete",
+                })
+              }
+              disabled={actionLoading}
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-red-100 bg-white px-4 text-sm font-medium text-red-500 transition hover:bg-red-50 disabled:opacity-50 cursor-pointer"
             >
               <Trash2 size={15} />
               Delete
             </button>
-
-            <button
-              type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
-            >
-              <MoreHorizontal size={18} />
-            </button>
-
           </div>
-
         </div>
-
       </div>
 
-      {/* Main Grid */}
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_350px]">
+      {/* API Error */}
+      {error && (
+        <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {error}
+        </div>
+      )}
 
+      {/* Main */}
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_350px]">
         {/* LEFT */}
         <div className="space-y-6">
-
-          {/* Appointment Overview */}
+          {/* Schedule */}
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-
             <div className="border-b border-slate-100 p-5 md:p-6">
-
               <div className="flex items-center justify-between">
-
                 <div>
                   <p className="text-xs font-medium text-emerald-600">
                     Appointment Overview
@@ -181,13 +359,10 @@ export default function AppointmentDetailsPage() {
                 <div className="hidden h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 sm:flex">
                   <CalendarDays size={19} />
                 </div>
-
               </div>
-
             </div>
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3">
-
               {/* Date */}
               <div className="border-b border-slate-100 p-5 sm:border-r lg:border-b-0">
                 <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-50 text-slate-500">
@@ -199,7 +374,7 @@ export default function AppointmentDetailsPage() {
                 </p>
 
                 <p className="mt-1 text-sm font-semibold text-slate-800">
-                  {appointment.date}
+                  {formatDate(appointment.appointment_date)}
                 </p>
               </div>
 
@@ -214,11 +389,7 @@ export default function AppointmentDetailsPage() {
                 </p>
 
                 <p className="mt-1 text-sm font-semibold text-slate-800">
-                  {appointment.time}
-                </p>
-
-                <p className="mt-0.5 text-[11px] text-slate-400">
-                  Ends at {appointment.endTime}
+                  {formatTime(appointment.appointment_time)}
                 </p>
               </div>
 
@@ -233,80 +404,52 @@ export default function AppointmentDetailsPage() {
                 </p>
 
                 <p className="mt-1 text-sm font-semibold text-slate-800">
-                  {appointment.service.duration}
+                  {service?.duration_minutes
+                    ? `${service.duration_minutes} mins`
+                    : "Not provided"}
                 </p>
               </div>
-
             </div>
-
           </section>
 
           {/* Customer */}
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+            <div className="mb-5">
+              <p className="text-xs font-medium text-emerald-600">Customer</p>
 
-            <div className="mb-5 flex items-center justify-between">
-
-              <div>
-                <p className="text-xs font-medium text-emerald-600">
-                  Customer
-                </p>
-
-                <h2 className="mt-1 text-lg font-semibold text-slate-900">
-                  Customer Information
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                className="hidden items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 sm:flex"
-              >
-                View Customer
-                <ArrowLeft
-                  size={13}
-                  className="rotate-180"
-                />
-              </button>
-
+              <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                Customer Information
+              </h2>
             </div>
 
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-
-              {/* Avatar */}
               <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-lg font-semibold text-emerald-700">
-                {appointment.customer.initials}
+                {getInitials(customer?.name)}
               </div>
 
               <div className="min-w-0 flex-1">
-
                 <h3 className="text-lg font-semibold text-slate-900">
-                  {appointment.customer.name}
+                  {customer?.name || "Unknown Customer"}
                 </h3>
 
                 <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:gap-5">
-
                   <div className="flex items-center gap-1.5 text-xs text-slate-400">
                     <Phone size={13} />
-                    {appointment.customer.phone}
+                    {customer?.phone || "Not provided"}
                   </div>
 
                   <div className="flex items-center gap-1.5 text-xs text-slate-400">
                     <Mail size={13} />
-                    {appointment.customer.email}
+                    {customer?.email || "Not provided"}
                   </div>
-
                 </div>
-
               </div>
-
             </div>
-
           </section>
 
           {/* Service & Staff */}
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
-
             <div className="mb-5">
-
               <p className="text-xs font-medium text-emerald-600">
                 Appointment Details
               </p>
@@ -314,14 +457,11 @@ export default function AppointmentDetailsPage() {
               <h2 className="mt-1 text-lg font-semibold text-slate-900">
                 Service & Staff
               </h2>
-
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-
               {/* Service */}
               <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
-
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm">
                   <Scissors size={18} />
                 </div>
@@ -331,26 +471,24 @@ export default function AppointmentDetailsPage() {
                 </p>
 
                 <h3 className="mt-1 text-base font-semibold text-slate-800">
-                  {appointment.service.name}
+                  {service?.name || "Unknown Service"}
                 </h3>
 
                 <div className="mt-3 flex items-center justify-between">
-
                   <span className="text-xs text-slate-400">
-                    {appointment.service.category}
+                    {service?.category?.name || service?.category || "Service"}
                   </span>
 
-                  <span className="text-sm font-semibold text-slate-800">
-                    {appointment.service.price}
-                  </span>
-
+                  {service?.price && (
+                    <span className="text-sm font-semibold text-slate-800">
+                      {service.price}
+                    </span>
+                  )}
                 </div>
-
               </div>
 
               {/* Staff */}
               <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
-
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm">
                   <UserRound size={18} />
                 </div>
@@ -360,289 +498,141 @@ export default function AppointmentDetailsPage() {
                 </p>
 
                 <div className="mt-2 flex items-center gap-3">
-
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-semibold text-emerald-700">
-                    {appointment.staff.initials}
+                    {getInitials(staff?.name)}
                   </div>
 
                   <div>
                     <h3 className="text-sm font-semibold text-slate-800">
-                      {appointment.staff.name}
+                      {staff?.name || "Not assigned"}
                     </h3>
 
                     <p className="text-[11px] text-slate-400">
-                      {appointment.staff.role}
+                      {staff?.role || "Staff"}
                     </p>
                   </div>
-
                 </div>
-
               </div>
-
             </div>
-
           </section>
 
           {/* Notes */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+          {appointment.notes && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-50 text-slate-500">
+                  <MessageSquare size={16} />
+                </div>
 
-            <div className="mb-4 flex items-center gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-900">
+                    Appointment Notes
+                  </h2>
 
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-50 text-slate-500">
-                <MessageSquare size={16} />
+                  <p className="text-xs text-slate-400">
+                    Additional information
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900">
-                  Appointment Notes
-                </h2>
-
-                <p className="text-xs text-slate-400">
-                  Additional information
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-sm leading-6 text-slate-600">
+                  {appointment.notes}
                 </p>
               </div>
-
-            </div>
-
-            <div className="rounded-xl bg-slate-50 p-4">
-
-              <p className="text-sm leading-6 text-slate-600">
-                {appointment.notes}
-              </p>
-
-            </div>
-
-          </section>
-
-          {/* Previous Appointments */}
-          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-
-            <div className="border-b border-slate-100 p-5 md:p-6">
-
-              <p className="text-xs font-medium text-emerald-600">
-                Customer History
-              </p>
-
-              <h2 className="mt-1 text-lg font-semibold text-slate-900">
-                Previous Appointments
-              </h2>
-
-            </div>
-
-            <div className="divide-y divide-slate-100">
-
-              {previousAppointments.map(
-                (item, index) => (
-                  <div
-                    key={index}
-                    className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between"
-                  >
-
-                    <div className="flex items-center gap-3">
-
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-500">
-                        <CalendarDays size={15} />
-                      </div>
-
-                      <div>
-                        <p className="text-sm font-medium text-slate-800">
-                          {item.service}
-                        </p>
-
-                        <p className="mt-0.5 text-xs text-slate-400">
-                          {item.date} · {item.staff}
-                        </p>
-                      </div>
-
-                    </div>
-
-                    <div className="flex items-center gap-4 pl-12 sm:pl-0">
-
-                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
-                        {item.status}
-                      </span>
-
-                      <span className="text-sm font-semibold text-slate-700">
-                        {item.price}
-                      </span>
-
-                    </div>
-
-                  </div>
-                )
-              )}
-
-            </div>
-
-          </section>
-
+            </section>
+          )}
         </div>
 
-        {/* RIGHT SIDEBAR */}
+        {/* RIGHT */}
         <aside className="space-y-5 xl:sticky xl:top-24 xl:self-start">
-
-          {/* Status Card */}
+          {/* Status */}
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-
             <div className="bg-emerald-700 p-5 text-white">
-
-              <p className="text-xs text-emerald-100">
-                Appointment Status
-              </p>
+              <p className="text-xs text-emerald-100">Appointment Status</p>
 
               <div className="mt-2 flex items-center gap-2">
+                {isCancelled ? (
+                  <XCircle size={19} />
+                ) : (
+                  <CheckCircle2 size={19} />
+                )}
 
-                <CheckCircle2 size={19} />
-
-                <h2 className="text-lg font-semibold">
-                  {appointment.status}
-                </h2>
-
+                <h2 className="text-lg font-semibold">{status}</h2>
               </div>
 
               <p className="mt-2 text-xs leading-5 text-emerald-100">
-                This appointment is confirmed and scheduled.
+                {isCancelled
+                  ? "This appointment has been cancelled."
+                  : isCompleted
+                    ? "This appointment has been completed."
+                    : "This appointment is scheduled."}
               </p>
-
             </div>
 
             <div className="p-5">
+              {isPending && (
+                <button
+                  type="button"
+                  onClick={handleConfirm}
+                  disabled={actionLoading}
+                  className="mb-2.5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 text-sm font-medium text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <CheckCircle2 size={16} />
 
-              <button
-                type="button"
-                className="mb-2.5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 text-sm font-medium text-white transition hover:bg-emerald-800"
-              >
-                <CheckCircle2 size={16} />
-                Mark as Completed
-              </button>
+                  {actionLoading ? "Confirming..." : "Confirm Appointment"}
+                </button>
+              )}
 
-              <button
-                type="button"
-                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-red-100 bg-white text-sm font-medium text-red-500 transition hover:bg-red-50"
-              >
-                <XCircle size={16} />
-                Cancel Appointment
-              </button>
-
+              {!isCompleted && !isCancelled && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setConfirmModal({
+                      open: true,
+                      type: "cancel",
+                    })
+                  }
+                  disabled={actionLoading}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-red-100 bg-white text-sm font-medium text-red-500 transition hover:bg-red-50 disabled:opacity-50"
+                >
+                  <XCircle size={16} />
+                  Cancel Appointment
+                </button>
+              )}
             </div>
-
           </section>
-
-          {/* Quick Details */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-
-            <h2 className="text-sm font-semibold text-slate-900">
-              Quick Details
-            </h2>
-
-            <div className="mt-5 space-y-4">
-
-              <div className="flex items-start gap-3">
-
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-500">
-                  <CalendarDays size={14} />
-                </div>
-
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400">
-                    Date
-                  </p>
-
-                  <p className="mt-0.5 text-sm font-medium text-slate-700">
-                    {appointment.date}
-                  </p>
-                </div>
-
-              </div>
-
-              <div className="flex items-start gap-3">
-
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-500">
-                  <Clock3 size={14} />
-                </div>
-
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400">
-                    Time
-                  </p>
-
-                  <p className="mt-0.5 text-sm font-medium text-slate-700">
-                    {appointment.time}
-                  </p>
-                </div>
-
-              </div>
-
-              <div className="flex items-start gap-3">
-
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-500">
-                  <UserRound size={14} />
-                </div>
-
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400">
-                    Staff
-                  </p>
-
-                  <p className="mt-0.5 text-sm font-medium text-slate-700">
-                    {appointment.staff.name}
-                  </p>
-                </div>
-
-              </div>
-
-              <div className="flex items-start gap-3">
-
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-500">
-                  <Scissors size={14} />
-                </div>
-
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400">
-                    Service
-                  </p>
-
-                  <p className="mt-0.5 text-sm font-medium text-slate-700">
-                    {appointment.service.name}
-                  </p>
-                </div>
-
-              </div>
-
-            </div>
-
-          </section>
-
-          {/* Created Info */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-
-            <div className="flex items-start gap-3">
-
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-500">
-                <MapPin size={15} />
-              </div>
-
-              <div>
-
-                <p className="text-xs font-semibold text-slate-700">
-                  SalonFlow
-                </p>
-
-                <p className="mt-1 text-xs leading-5 text-slate-400">
-                  Appointment created on{" "}
-                  {appointment.createdAt}.
-                </p>
-
-              </div>
-
-            </div>
-
-          </section>
-
         </aside>
-
       </div>
 
+      {/* Confirm Modal */}
+      <ConfirmModal
+        open={confirmModal.open}
+        title={
+          confirmModal.type === "delete"
+            ? "Delete Appointment?"
+            : "Cancel Appointment?"
+        }
+        message={
+          confirmModal.type === "delete"
+            ? "Are you sure you want to permanently delete this appointment? This action cannot be undone."
+            : "Are you sure you want to cancel this appointment?"
+        }
+        confirmText={
+          confirmModal.type === "delete"
+            ? "Delete Appointment"
+            : "Cancel Appointment"
+        }
+        cancelText="Keep Appointment"
+        danger={true}
+        onCancel={() =>
+          setConfirmModal({
+            open: false,
+            type: null,
+          })
+        }
+        onConfirm={confirmModal.type === "delete" ? handleDelete : handleCancel}
+      />
     </div>
   );
 }

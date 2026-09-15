@@ -26,6 +26,8 @@ import {
   deleteAppointment,
 } from "../../../lib/api";
 
+import ConfirmModal from "../../../components/ConfirmModal";
+
 import { useAuth } from "../../../context/AuthContext";
 
 import Pagination from "../../../components/Pagination";
@@ -142,6 +144,11 @@ export default function AppointmentsPage() {
   const [completedAppointments, setCompletedAppointments] = useState(0);
 
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [confirmModal, setConfirmModal] = useState({
+    open: false,
+    type: null,
+    appointmentId: null,
+  });
 
   async function loadAppointmentStats() {
     try {
@@ -323,14 +330,33 @@ export default function AppointmentsPage() {
   /*
    * Cancel appointment
    */
-  async function handleCancel(id) {
-    const confirmCancel = window.confirm(
-      "Are you sure you want to cancel this appointment?",
-    );
+  function handleCancel(id) {
+    setConfirmModal({
+      open: true,
+      type: "cancel",
+      appointmentId: id,
+    });
 
-    if (!confirmCancel) {
-      return;
-    }
+    setOpenMenu(null);
+  }
+
+  /*
+   * Delete appointment
+   */
+  function handleDelete(id) {
+    setConfirmModal({
+      open: true,
+      type: "delete",
+      appointmentId: id,
+    });
+
+    setOpenMenu(null);
+  }
+
+  async function confirmCancelAppointment() {
+    const id = confirmModal.appointmentId;
+
+    if (!id) return;
 
     try {
       setActionLoadingId(id);
@@ -348,7 +374,11 @@ export default function AppointmentsPage() {
         ),
       );
 
-      setOpenMenu(null);
+      setConfirmModal({
+        open: false,
+        type: null,
+        appointmentId: null,
+      });
     } catch (err) {
       console.error("CANCEL APPOINTMENT ERROR:", err);
 
@@ -358,36 +388,27 @@ export default function AppointmentsPage() {
     }
   }
 
-  /*
-   * Delete appointment
-   */
-  async function handleDelete(id) {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to permanently delete this appointment?",
-    );
+  async function confirmDeleteAppointment() {
+    const id = confirmModal.appointmentId;
 
-    if (!confirmDelete) {
-      return;
-    }
+    if (!id) return;
 
     try {
       setActionLoadingId(id);
 
       await deleteAppointment(id);
 
-      /*
-       * Remove appointment from UI.
-       */
       setAppointments((prev) =>
         prev.filter((appointment) => appointment.id !== id),
       );
 
-      /*
-       * Update total.
-       */
       setTotalAppointments((prev) => Math.max(prev - 1, 0));
 
-      setOpenMenu(null);
+      setConfirmModal({
+        open: false,
+        type: null,
+        appointmentId: null,
+      });
     } catch (err) {
       console.error("DELETE APPOINTMENT ERROR:", err);
 
@@ -535,27 +556,8 @@ export default function AppointmentsPage() {
             )}
           </div>
 
-          {/* Status Select */}
-          <div className="hidden sm:relative">
-            <SlidersHorizontal
-              size={15}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-
-            <select
-              value={status}
-              onChange={(e) => handleStatusChange(e.target.value)}
-              className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-9 text-sm text-slate-600 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 sm:w-[145px]"
-            >
-              {statusFilters.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </div>
           {/* Status Buttons */}
-          <div className="sm:hidden mt-4 flex gap-2 overflow-x-auto pb-1">
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
             {statusFilters.map((item) => (
               <button
                 key={item}
@@ -971,6 +973,38 @@ export default function AppointmentsPage() {
           </>
         )}
       </div>
+      <ConfirmModal
+        open={confirmModal.open}
+        title={
+          confirmModal.type === "delete"
+            ? "Delete Appointment?"
+            : "Cancel Appointment?"
+        }
+        message={
+          confirmModal.type === "delete"
+            ? "Are you sure you want to permanently delete this appointment? This action cannot be undone."
+            : "Are you sure you want to cancel this appointment?"
+        }
+        confirmText={
+          confirmModal.type === "delete"
+            ? "Delete Appointment"
+            : "Cancel Appointment"
+        }
+        cancelText="Keep Appointment"
+        danger={confirmModal.type === "delete"}
+        onCancel={() =>
+          setConfirmModal({
+            open: false,
+            type: null,
+            appointmentId: null,
+          })
+        }
+        onConfirm={
+          confirmModal.type === "delete"
+            ? confirmDeleteAppointment
+            : confirmCancelAppointment
+        }
+      />
     </div>
   );
 }
